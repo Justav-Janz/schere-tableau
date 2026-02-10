@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="lb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schere Tableau – A4 Print Optimiséiert (Clean)</title>
+
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f5d64a">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Schere Tableau">
+
+
+<style>
+:root{ --bg:#f5d64a; --ink:#000; }
+
+body{
+  margin:0;
+  font-family:Arial,Helvetica,sans-serif;
+  background:var(--bg);
+  color:var(--ink);
+}
+
+.toolbar{
+  padding:8px;
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+button{
+  padding:8px 12px;
+  font-weight:900;
+  border:2px solid #000;
+  background:#fff;
+}
+
+.wrapper{ padding:8px; }
+
+table{ border-collapse:collapse; width:100%; }
+
+th,td{
+  border:3px solid #000;
+  text-align:center;
+  padding:6px;
+  font-weight:900;
+  font-size:15px;
+}
+
+/* Clean numeric cells (no spinners) */
+input.score{
+  width:50px;
+  height:34px;
+  font-size:16px;
+  font-weight:900;
+  text-align:center;
+  border:2px solid #000;
+  background:#fff8c6;
+  -webkit-appearance:none;
+  appearance:none;
+  border-radius:0;
+}
+
+.special{ background:#ffe680; }
+
+.mst{ background:#fff3b0; }
+.diff{ font-size:18px; }
+.pos{ color:#008000; }
+.neg{ color:#c00000; }
+
+.totalrow{ background:#000; color:#fff; font-size:18px; }
+.totalrow2{ background:#222; color:#fff; font-size:18px; }
+
+.footer{
+  text-align:right;
+  font-size:22px;
+  font-weight:900;
+  padding:12px;
+}
+
+
+.print-date{
+  text-align:right;
+  font-weight:900;
+  font-size:18px;
+  padding:4px 2px 10px 0;
+}
+
+@media print{
+  .print-date{ font-size:14px; }
+}
+
+/* ===== Print (A4 Landscape, centered, auto-fit) ===== */
+@page{
+  size: A4 landscape;
+  margin: 10mm;
+}
+
+@media print{
+  body{
+    background:#fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .toolbar{ display:none !important; }
+
+  .print-frame{
+    width: 277mm;   /* ~297mm - 20mm margins */
+    margin: 0 auto;
+  }
+
+  .print-scale{
+    transform: scale(0.82);
+    transform-origin: top center;
+  }
+
+  th,td{
+    border:1.4px solid #000;
+    padding:4px;
+    font-size:13px;
+  }
+
+  input.score{
+    border:0;
+    background:transparent;
+    width:auto;
+    height:auto;
+    font-size:12px;
+  }
+
+  .diff{ font-size:14px; }
+  .footer{ font-size:16px; padding:8px 0 0 0; }
+}
+</style>
+</head>
+
+<body>
+<div class="toolbar">
+  <button onclick="resetMatch()">Neie Match</button>
+  <button onclick="window.print()">🖨 Print / PDF</button>
+</div>
+
+<div class="wrapper print-frame">
+  <div class="print-scale">
+    
+<div id="printDate" class="print-date"></div>
+
+    <table id="t"></table>
+    <div class="footer" id="summary"></div>
+  </div>
+</div>
+
+<script>
+const rows=[3,3,3,6,3,3,3,6];
+const table=document.getElementById("t");
+
+function build(){
+  const head=document.createElement("tr");
+  head.innerHTML="<th>Partie</th><th>Home</th><th>Total</th><th>Visiteur</th><th>Total</th><th>MST</th><th>Diff</th>";
+  table.appendChild(head);
+
+  rows.forEach((c,i)=>{
+    const tr=document.createElement("tr");
+    if(c===6) tr.className="special";
+    tr.innerHTML=`
+      <td>${i+1}</td>
+      <td>${inputs(c)}</td>
+      <td id="h${i}"></td>
+      <td>${inputs(c)}</td>
+      <td id="a${i}"></td>
+      <td class="mst" id="m${i}"></td>
+      <td class="diff" id="d${i}"></td>`;
+    table.appendChild(tr);
+  });
+
+  const total1=document.createElement("tr");
+  total1.className="totalrow";
+  total1.innerHTML=`
+    <td colspan="5">TOTAL MST / DIFF</td>
+    <td id="mstTotal">0–0</td>
+    <td id="diffTotal">0</td>`;
+  table.appendChild(total1);
+
+  const total2=document.createElement("tr");
+  total2.className="totalrow2";
+  total2.innerHTML=`
+    <td colspan="2">HOLZ TOTAL</td>
+    <td id="homeTotal">0</td>
+    <td></td>
+    <td id="awayTotal">0</td>
+    <td colspan="2"></td>`;
+  table.appendChild(total2);
+}
+
+function inputs(c){
+  let s="";
+  for(let i=0;i<c;i++){
+    s+=`<input class="score" inputmode="numeric" pattern="[0-9]*" oninput="sanitizeAndCalc(this)" placeholder="">`;
+  }
+  return s;
+}
+
+function sanitizeAndCalc(el){
+  // keep only digits (no minus, no decimals)
+  el.value = (el.value || "").replace(/[^0-9]/g,"");
+  calc();
+}
+
+function sum(td){
+  let s=0, any=false;
+  td.querySelectorAll("input.score").forEach(x=>{
+    if(x.value!==""){ s+=parseInt(x.value,10); any=true; }
+  });
+  return any?s:null;
+}
+
+function fmt(x){ return x.toFixed(1).replace(".",","); }
+
+function calc(){
+  let partH=0, partA=0, holzH=0, holzA=0, diffSum=0;
+
+  rows.forEach((c,i)=>{
+    const r=table.rows[i+1];
+    const h=sum(r.cells[1]);
+    const a=sum(r.cells[3]);
+
+    document.getElementById("h"+i).innerText = (h??"");
+    document.getElementById("a"+i).innerText = (a??"");
+
+    const mstCell=document.getElementById("m"+i);
+    const diffCell=document.getElementById("d"+i);
+
+    if(h!=null) holzH+=h;
+    if(a!=null) holzA+=a;
+
+    if(h!=null && a!=null){
+      const diff=h-a;
+      diffSum+=diff;
+
+      diffCell.innerText = diff;
+      diffCell.className = "diff " + (diff>=0 ? "pos" : "neg");
+
+      if(h>a){ mstCell.innerText="1–0"; partH+=1; }
+      else if(a>h){ mstCell.innerText="0–1"; partA+=1; }
+      else { mstCell.innerText="0,5–0,5"; partH+=0.5; partA+=0.5; }
+    } else {
+      mstCell.innerText="";
+      diffCell.innerText="";
+    }
+  });
+
+  document.getElementById("mstTotal").innerText = fmt(partH)+" – "+fmt(partA);
+  document.getElementById("diffTotal").innerText = diffSum;
+  document.getElementById("homeTotal").innerText = holzH;
+  document.getElementById("awayTotal").innerText = holzA;
+
+  document.getElementById("summary").innerText =
+    "🏆 Partien: "+fmt(partH)+" – "+fmt(partA)+" | 📊 Holz: "+holzH+" – "+holzA;
+}
+
+function resetMatch(){
+  document.querySelectorAll("input.score").forEach(i=>i.value="");
+  calc();
+}
+
+
+// auto date
+function setToday(){
+  const d = new Date();
+  const f = d.toLocaleDateString('lb-LU');
+  document.getElementById('printDate').innerText = f;
+}
+
+setToday();
+build();
+calc();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
+</script>
+
+</body>
+</html>
