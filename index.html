@@ -134,6 +134,19 @@ input.score{
   .diff{ font-size:14px; }
   .footer{ font-size:16px; padding:8px 0 0 0; }
 }
+.print-only {
+  display: none;
+}
+
+@media print {
+  .print-only {
+    display: block;
+    font-size: 12px;
+    color: #666;
+    text-align: center;
+    margin-top: 40px;
+  }
+}
 </style>
 </head>
 
@@ -286,9 +299,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
-<hr style="margin-top:40px;">
-
-<p style="font-size:12px;color:#666;text-align:center;">
+<p class="print-only">
 Dëst ass e private Club- / Hobby-Projet.<br>
 D’Resultater ginn vun de Benotzer selwer aginn.<br>
 Keng Garantie fir Richtegkeet oder Vollstännegkeet.<br>
